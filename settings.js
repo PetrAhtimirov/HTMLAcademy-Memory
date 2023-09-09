@@ -4,4 +4,4 @@ const AppRoute = {
 };
 
 const TIMEOUT = 900;
-const RANDOMIZED = false;
+const RANDOMIZED = true;
