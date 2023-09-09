@@ -232,7 +232,7 @@
           </thead>
           <tbody>
             {sortedResults.map(({name, stepsCount}, i) => (
-              <tr key={name} className={`result-table-row ${stepsCount === current ? 'active' : ''}`}>
+              <tr key={name} className={`result-table-row ${name === 'Ваш результат' ? 'active' : ''}`}>
                 <td>{i + 1}</td>
                 <td>{name}</td>
                 <td>{stepsCount}</td>
