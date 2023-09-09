@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Игра Мемори</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="vendor/react.development.js"></script>
+  <script src="vendor/react-dom.development.js"></script>
+  <script src="vendor/babel.min.js"></script>
+  <script src="vendor/get-declension.min.umd.js"></script>
+  <script src="data.js"></script>
+  <script src="settings.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App getImages={getImages} results={results}/>);
+
+    function App({results, getImages}) {
+      const [page, setPage] = React.useState(AppRoute.Initial);
+      const [result, setResult] = React.useState(0);
+      const [images, setImages] = React.useState([]);
+      const [currentTheme, setCurrentTheme] = React.useState('');
+      const handleStart = (type) => {
+        const images = getImages(type);
+        setImages(item => images);
+        setCurrentTheme(theme => type);
+        setPage(AppRoute.Game);
+      };
+
+      const showResults = (stepsCount) => {
+        setResult(stepsCount);
+        setPage(AppRoute.Results);
+      };
+      const handleReset = () => {
+        setPage(AppRoute.Initial);
+      };
+      const getPage = (route) => {
+        switch (route) {
+          case AppRoute.Game:
+            return <GamePage 
+                     images={images}
+                     onShowResults={showResults}
+                     currentTheme={currentTheme} />;
+          case AppRoute.Results:
+            return (
+              <ResultsPage
+                stepsCount={result}
+                onResetGame={handleReset}
+                results={results}
+              />
+            );
+          case AppRoute.Initial:
+            return <InitialPage onStart={handleStart} />
+          default:
+            return null;
+        }
+      };
+      return getPage(page);
+    }
+
+    const useGame = (images) => {
+      const [finishedItems, setFinishedItems] = React.useState([]);
+      const [stepsCount, setStepsCount] = React.useState(0);
+
+      const checkItems = (firstItem, secondItem) => {
+        const firstImage = images.find(({id}) => id === firstItem);
+        const secondImage = images.find(({id}) => id === secondItem);
+        if (firstImage.url === secondImage.url) {
+          setFinishedItems((items) => [...items, firstItem, secondItem]);
+        }
+        setStepsCount((i) => i + 1);
+      };
+
+      const isWin = finishedItems.length > 0 && finishedItems.length === images.length;
+
+      return {
+        finishedItems,
+        stepsCount,
+        checkItems,
+        isWin
+      };
+    };
+
+    function GamePage({images = [], onShowResults, currentTheme}) {
+      const {
+        finishedItems,
+        stepsCount,
+        checkItems,
+        isWin
+      } = useGame(images);
+
+      const handleResultsClick = () => {
+        onShowResults(stepsCount);
+      };
+
+      return (
+        <section className="game container">
+          <Progress value={finishedItems.length / 2} max={images.length / 2} />
+          <div className="steps">Шаг {stepsCount}</div>
+          <Grid
+            images={images}
+            finishedItems={finishedItems}
+            checkItems={checkItems}
+            currentTheme={currentTheme}
+          />
+          {isWin && (
+            <Modal>
+              <h3 className="modal-caption">Победа!</h3>
+              <p className="modal-description">Теперь давайте узнаем результаты этой партии</p>
+              <button className="button modal-button" type="button" onClick={handleResultsClick}>Показать результаты</button>
+            </Modal>
+          )}
+        </section>
+      );
+    }
+
+    function Progress({value, max}) {
+      return (
+        <>
+          <div className="progress-wrapper">
+            <div className="progress" style={{width: `${value / max * 100}%`}}></div>
+          </div>
+          <p className="progress-description">Открыто {value} / {max}</p>
+        </>
+      );
+    }
+
+    function Modal({children}) {
+      return (
+        <div className="modal">
+          <div className="modal-box">
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function Grid({images = [], finishedItems, checkItems, currentTheme}) {
+      const [visibleItems, setVisibleItems] = React.useState([]);
+
+      const handleCardClick = (id) => {
+        if (finishedItems.includes(id) || visibleItems.includes(id)) {
+          return;
+        }
+
+        switch (visibleItems.length) {
+          case 0:
+            setVisibleItems([id]);
+            break;
+          case 1:
+            setVisibleItems((items) => [...items, id]);
+            checkItems(visibleItems[0], id);
+            setTimeout(() => {
+              setVisibleItems([]);
+            }, TIMEOUT);
+            break;
+          default:
+            setVisibleItems([]);
+        }
+      };
+
+      return (
+        <ul className={`cards cards-theme-${currentTheme}`}>
+          {images.map((item) => (
+            <Card
+              key={item.id}
+              item={item}
+              isVisible={visibleItems.includes(item.id)}
+              isFinished={finishedItems.includes(item.id)}
+              onCardClick={handleCardClick}
+            />
+          ))}
+        </ul>
+      );
+    }
+
+    function Card({item, isVisible, isFinished, onCardClick}) {
+      const {id, url, description} = item;
+      const className = `${
+        isVisible ? 'card-show' : ''
+      } ${
+        isFinished ? 'card-finished' : ''
+      }`;
+
+      const handleClick = () => {
+        onCardClick(id);
+      };
+
+      return (
+        <li onClick={handleClick} className={`card ${className}`}>
+          <img
+            width="204" height="144"
+            src={url}
+            alt={description}
+          />
+        </li>
+      );
+    }
+
+    function ResultsPage({ stepsCount, results, onResetGame }) {
+      // TODO: примените getDeclension для правильного склонения числа шагов
+      const wordsDeclension = getDeclension({
+        count: stepsCount,
+        one: 'шаг', few: 'шага', many: 'шагов'
+      });
+
+      return (
+        <section className="result container">
+          <h2>Лучшие результаты:</h2>
+          <p>Вы завершили игру за <b>{wordsDeclension}</b>, так держать!</p>
+          <ResultsTable current={stepsCount} results={results} />
+          <p>Хотите попробовать ещё раз?</p>
+          <button onClick={onResetGame} className="button result-button" type="button">Новая игра</button>
+        </section>
+      );
+    }
+
+    function ResultsTable({ current, results }) {
+      const sortedResults = [...results, {name: 'Ваш результат', stepsCount: current}]
+        .sort((a, b) => a.stepsCount - b.stepsCount);
+      return (
+        <table className="result-table">
+          <thead>
+            <tr className="result-table-row">
+              <th>Место</th>
+              <th>Имя</th>
+              <th>Шаги</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedResults.map(({name, stepsCount}, i) => (
+              <tr key={name} className={`result-table-row ${stepsCount === current ? 'active' : ''}`}>
+                <td>{i + 1}</td>
+                <td>{name}</td>
+                <td>{stepsCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
+
+    function InitialPage({onStart}) {
+      return (
+        <section className="rules container">
+          <h2>Добро пожаловать!</h2>
+          <p>Memory — игра для тренировки визуальной памяти</p>
+          <div className="rules-panel">
+            <h3>Правила игры</h3>
+            <ul className="rules-list">
+              <li>В наборе есть множество карточек – по две штуки с одним и тем же рисунком.</li>
+              <li>Нужно разложить карточки «рубашкой» вверх на столе, а затем переворачивать по две.</li>
+              <li>Если они совпадают – игрок забирает их и получает ещё один ход.</li>
+            </ul>
+          </div>
+          <button className="ico-button ico-button-cats" type="button" onClick={() => onStart('cats')}>Котики</button>
+          <button className="ico-button ico-button-flowers" type="button" onClick={() => onStart('flowers')}>Цветочки</button>
+          <button className="ico-button ico-button-cars" type="button" onClick={() => onStart('cars')}>Машины</button>
+        </section>
+      );
+    }
+  </script>
+</body>
+</html>
